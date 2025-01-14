@@ -121,57 +121,51 @@ const changeDefNum = (val) => {
 //自动处理
 const autoHandle = () => {
   let tabData = JSON.parse(localStorage.getItem("tabData"));//取出总人员
+  let availableCount = tabData.filter(person => person.type !== 2).length; // 计算可选人数
   let allNum = defNum.value.reduce((a, b) => Number(a) + Number(b));//计算总奖项数量
+  
   if (!/^[1-9]\d*$/.test(defNum.value[0])) {
     ElMessage.error('奖项数量设置错误！');
     return;
   }
-  if (tabData.length < allNum) {
-    ElMessage.error('剩余抽奖人数不足！');
-    return
+  if (availableCount < allNum) {
+    ElMessage.error('可选人数不足！');
+    return;
   }
+  
   handleStart();
   setTimeout(() => {
-    let luckDrawHis = JSON.parse(localStorage.getItem("luckDrawHis")) ? JSON.parse(localStorage.getItem("luckDrawHis")) : [];// 获取抽奖历史
-    let sureTime = new Date().toLocaleString()//中将时间
-    let list = shuffle(tabData);// 乱序数组
-    curOkList.value = [];//置空
-    list.forEach((l, index) => {
-      if (index < allNum) {
-        let prizeName = '';//根据index、defNum与optionsData确定奖项
-        if (index < Number(defNum.value[0]) + Number(defNum.value[1]) + Number(defNum.value[2]) + Number(defNum.value[3])) {
-          prizeName = optionsData.value[3];
-        }
-        if (index < Number(defNum.value[0]) + Number(defNum.value[1]) + Number(defNum.value[2])) {
-          prizeName = optionsData.value[2];
-        }
-        if (index < Number(defNum.value[0]) + Number(defNum.value[1])) {
-          prizeName = optionsData.value[1];
-        }
-        if (index < Number(defNum.value[0])) {
-          prizeName = optionsData.value[0];
-        }
-        curOkList.value.push({
-          prize: prizeName,//奖项
-          name: l.name,//姓名
-          department: l.department,//部门
-          time: sureTime
-        })
+    let luckDrawHis = JSON.parse(localStorage.getItem("luckDrawHis")) ? JSON.parse(localStorage.getItem("luckDrawHis")) : [];
+    let sureTime = new Date().toLocaleString();
+    let winners = [];
+    let shuffledList = shuffle([...tabData]);
+    
+    // 选出足够的获奖者
+    for (let i = 0; winners.length < allNum && i < shuffledList.length; i++) {
+      if (shuffledList[i].type !== 2) {
+        winners.push(shuffledList[i]);
       }
-    })
-    luckDrawHis = luckDrawHis.concat(curOkList.value);//将luckDrawHis与curOkList合并
-    localStorage.setItem("luckDrawHis", JSON.stringify(luckDrawHis));//数据存入本地
-    let tempList = [];//临时列表
-    nameList.value.forEach(n => {
-      if (!luckDrawHis.map(l => l.name).includes(n.name)) {
-        tempList.push(n);// 将不在luckDrawHis中的人员添加到临时列表
-      }
-    })
-    nameList.value = tempList;//重新赋值姓名列表
-    localStorage.setItem("tabData", JSON.stringify(nameList.value));//数据存入本地
-    isStop.value = true;//停止循环
-    isShowMsg.value = true;//显示信息
-  }, 200 * allNum);
+    }
+    
+    curOkList.value = winners.map(winner => ({
+      prize: optionsData.value[0],
+      name: winner.name,
+      department: winner.department,
+      time: sureTime
+    }));
+    
+    // 更新历史记录和剩余名单
+    luckDrawHis.push(...curOkList.value);
+    let tempList = tabData.filter(person => 
+      !winners.some(w => w.name === person.name)
+    );
+    
+    localStorage.setItem("luckDrawHis", JSON.stringify(luckDrawHis));
+    localStorage.setItem("tabData", JSON.stringify(tempList));
+    nameList.value = tempList;
+    isStop.value = true;
+    isShowMsg.value = true;
+  }, 2000);
 }
 
 //点击开始
@@ -201,12 +195,13 @@ const shuffle = (arr) => {
 
 //循环列表
 const forNameList = (list) => {
-  list = shuffle(list);// 乱序数组
-  for (let i = 0; i < list.length; i++) {
+  const shuffledList = shuffle([...list]);// 乱序数组的副本
+  
+  for (let i = 0; i < shuffledList.length; i++) {
     setTimeout(() => {
       if (!isStop.value) {
-        curName.value = list[i].name;
-        (i == list.length - 1) && (forNameList(nameList.value));//数组耗尽循环
+        curName.value = shuffledList[i].name;
+        (i == shuffledList.length - 1) && (forNameList(nameList.value));//数组耗尽循环
       }
     }, 50 * i);
   }
@@ -216,6 +211,16 @@ const forNameList = (list) => {
 const handleStop = () => {
   let tabData = JSON.parse(localStorage.getItem("tabData"));//取出总人员
   let luckDrawHis = JSON.parse(localStorage.getItem("luckDrawHis")) ? JSON.parse(localStorage.getItem("luckDrawHis")) : [];
+  
+  // 检查当前选中的人是否可以被抽中
+  const currentPerson = tabData.find(t => t.name === curName.value);
+  if (currentPerson?.type === 2) {
+    // 如果是不可选的人，继续抽奖并顺延到下一个可选的人
+    forNameListOnce(nameList.value);
+    return;
+  }
+
+  // 记录中奖历史
   tabData.forEach(t => {
     if (t.name == curName.value) {
       luckDrawHis.push({
@@ -227,6 +232,8 @@ const handleStop = () => {
     }
   })
   localStorage.setItem("luckDrawHis", JSON.stringify(luckDrawHis));//数据存入本地
+  
+  // 从名单中移除中奖者
   let tempList = [];//临时列表
   nameList.value.forEach(n => {
     if (n.name !== curName.value) {
@@ -237,6 +244,44 @@ const handleStop = () => {
   localStorage.setItem("tabData", JSON.stringify(nameList.value));//数据存入本地
   isStop.value = true;//停止循环
   isShowMsg.value = true;
+}
+
+// 新增一个只执行一次的抽奖函数
+const forNameListOnce = (list) => {
+  const shuffledList = shuffle([...list]);// 乱序数组的副本
+  let nextValidPerson = null;
+  
+  // 从当前名字开始，找到下一个可选的人
+  let currentIndex = shuffledList.findIndex(person => person.name === curName.value);
+  if (currentIndex === -1) currentIndex = 0;
+  
+  // 从当前位置往后找
+  for (let i = currentIndex + 1; i < shuffledList.length; i++) {
+    if (shuffledList[i].type !== 2) {
+      nextValidPerson = shuffledList[i];
+      break;
+    }
+  }
+  
+  // 如果没找到，从头开始找
+  if (!nextValidPerson) {
+    for (let i = 0; i < currentIndex; i++) {
+      if (shuffledList[i].type !== 2) {
+        nextValidPerson = shuffledList[i];
+        break;
+      }
+    }
+  }
+  
+  if (nextValidPerson) {
+    curName.value = nextValidPerson.name;
+    // 递归调用 handleStop 处理新选中的人
+    handleStop();
+  } else {
+    // 如果没有可选的人了，显示提示
+    ElMessage.error('没有可选的人了！');
+    isStop.value = true;
+  }
 }
 </script>
 

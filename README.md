@@ -1,5 +1,3 @@
-# 年会抽奖
-* 在线链接：http://1.15.222.141:2222/original/other/luckDraw/index.html
 
 # 安装依赖
 npm i

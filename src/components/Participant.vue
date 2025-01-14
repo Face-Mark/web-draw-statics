@@ -82,6 +82,7 @@ const importData = (e) => {
             tabData.value.push({
                 name: j.姓名,
                 department: j.一级部门,
+                type: j.类型 // 1-会被选中 2-不会被选中
             });
         }); //处理成需要的数据格式
         localStorage.setItem("tabData", JSON.stringify(tabData.value));//数据存入本地
