@@ -81,7 +81,7 @@ const importData = (e) => {
         jsonData.forEach((j) => {
             tabData.value.push({
                 name: j.姓名,
-                department: j.一级部门,
+                department: j.部门,
                 type: j.类型 // 1-会被选中 2-不会被选中
             });
         }); //处理成需要的数据格式
